@@ -9,8 +9,8 @@ except ImportError:
     from distutils.core import find_packages, setup
 
 setup(
-    author='Masaki Tagawa',
-    author_email='masaki@sukiyaki.ski',
+    author='Julien Briault',
+    author_email='contact@jbriault.fr',
     description=octodns_netbox.__doc__,
     install_require=[
         'octodns>=0.8.0',
