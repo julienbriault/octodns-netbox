@@ -54,11 +54,11 @@ class NetboxClient(object):
     def __init__(self, url, token):
         self.url = url
         sess = Session()
-        sess.headers.update({'Authorization': 'Token {}'.format(token)})
+        sess.headers.update({'Authorization': f'Token {token}'})
         self._sess = sess
 
     def _request(self, method, path, params=None, data=None):
-        url = '{}{}'.format(self.url, path)
+        url = f'{self.url}{path}'
         resp = self._sess.request(method, url, params=params, json=data)
         if resp.status_code == 401:
             raise NetboxClientUnauthorized()
@@ -77,10 +77,11 @@ class NetboxClient(object):
         while True:
             data = self._request(
                 'GET',
-                '/ipam/ip-addresses/?limit={}&offset={}&q={}&family={}&parent={}'
-                .format(limit, offset, zone_name, family, parent)).json()
+                f'/ipam/ip-addresses/?limit={limit}&offset={offset}&q={zone_name}&family={family}&parent={parent}',
+            ).json()
+
             ret += data['results']
-            if data['next'] == None:
+            if data['next'] is None:
                 break
             offset += limit
 
@@ -103,7 +104,7 @@ class NetboxSource(BaseSource):
     SUPPORTS = set(('A', 'AAAA', 'PTR'))
 
     def __init__(self, id, url, token, ttl=60):
-        self.log = logging.getLogger('NetboxSource[{}]'.format(id))
+        self.log = logging.getLogger(f'NetboxSource[{id}]')
         self.log.debug('__init__: id=%s, url=%s, token=***', id, url)
         super(NetboxSource, self).__init__(id)
         self._client = NetboxClient(url, token)
@@ -145,23 +146,19 @@ class NetboxSource(BaseSource):
     def _populate_PTRv4(self, zone, lenient):
         zone_length = len(zone.name.split('.')[:-3])
 
-        if zone_length > 3:
-            # parent = networkaddr/mask
-            parent = '.'.join(zone.name.split('.')[:-3][::-1])
-        else:
-            # parent = networkaddr
-            parent = '.'.join(zone.name.split('.')[:-3][::-1])
-            for i in range(4 - zone_length):
+        # parent = networkaddr/mask
+        parent = '.'.join(zone.name.split('.')[:-3][::-1])
+        if zone_length <= 3:
+            for _ in range(4 - zone_length):
                 parent += '.0'
-            parent += '/{}'.format(8 * zone_length)
+            parent += f'/{8 * zone_length}'
 
         for ipam_record in self.ipam_records(parent=parent, family=4):
             ip_address = ip_interface(ipam_record['address']).ip
             description = ipam_record['description']
 
             if zone_length > 3:
-                _name = '{}.{}'.format(
-                    ip_address.compressed.split('.')[-1], zone.name)
+                _name = f"{ip_address.compressed.split('.')[-1]}.{zone.name}"
                 name = zone.hostname_from_fqdn(_name)
             else:
                 name = zone.hostname_from_fqdn(ip_address.reverse_pointer)
@@ -170,7 +167,7 @@ class NetboxSource(BaseSource):
             fqdn = None
             for _fqdn in description.split(','):
                 if is_valid_hostname(_fqdn):
-                    fqdn = '{}.'.format(_fqdn)
+                    fqdn = f'{_fqdn}.'
                     break
                 else:
                     self.log.info('[is_valid_hostname] failed >>%s<<', _fqdn)
@@ -190,13 +187,13 @@ class NetboxSource(BaseSource):
 
         zone_reverse_str = ''.join(zone.name.split('.')[:-3][::-1])
         if len(zone_reverse_str) % 4 != 0:
-            for i in range(4 - (len(zone_reverse_str) % 4)):
+            for _ in range(4 - (len(zone_reverse_str) % 4)):
                 zone_reverse_str += '0'
         parent = ':'.join([
             zone_reverse_str[i:i + 4]
             for i in range(0, len(zone_reverse_str), 4)
         ])
-        parent += '::/{}'.format(zone_length * 4)
+        parent += f'::/{zone_length * 4}'
 
         for ipam_record in self.ipam_records(parent=parent, family=6):
             ip_address = ip_interface(ipam_record['address']).ip
@@ -208,7 +205,7 @@ class NetboxSource(BaseSource):
             fqdn = None
             for _fqdn in description.split(','):
                 if is_valid_hostname(_fqdn):
-                    fqdn = '{}.'.format(_fqdn)
+                    fqdn = f'{_fqdn}.'
                     break
                 else:
                     self.log.info('[is_valid_hostname] failed >>%s<<', _fqdn)
@@ -232,7 +229,7 @@ class NetboxSource(BaseSource):
 
             for _fqdn in description.split(','):
                 if is_valid_hostname(_fqdn):
-                    fqdn = '{}.'.format(_fqdn)
+                    fqdn = f'{_fqdn}.'
 
                     if fqdn.endswith(zone.name):
                         name = zone.hostname_from_fqdn(fqdn)
